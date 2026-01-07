@@ -19,7 +19,7 @@ export default function InitVault({ onInit }) {
     }
 
     setError("");
-    onInit(password);
+    onInit();
   }
 
   return (
