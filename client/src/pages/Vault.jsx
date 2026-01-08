@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   const [newItem, setNewItem] = useState({
@@ -12,6 +12,9 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   const [editItem, setEditItem] = useState({});
   const [visibleMap, setVisibleMap] = useState({});
   const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState("");
+
+  /* ---------------- ADD ---------------- */
 
   function handleAdd(e) {
     e.preventDefault();
@@ -24,6 +27,8 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
 
     setNewItem({ title: "", username: "", password: "", notes: "" });
   }
+
+  /* ---------------- EDIT ---------------- */
 
   function startEdit(item) {
     setEditingId(item.id);
@@ -40,6 +45,8 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
     cancelEdit();
   }
 
+  /* ---------------- UTILS ---------------- */
+
   function togglePassword(id) {
     setVisibleMap((p) => ({ ...p, [id]: !p[id] }));
   }
@@ -47,25 +54,49 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   async function copyPassword(item) {
     await navigator.clipboard.writeText(item.password);
     setCopiedId(item.id);
+
     setTimeout(() => {
       navigator.clipboard.writeText("");
       setCopiedId(null);
     }, 15000);
   }
 
-  return (
-    <div style={{ padding: 24, maxWidth: 800 }}>
-      <h2>🔑 Passwords</h2>
+  /* ---------------- SEARCH ---------------- */
 
-      {/* ADD NEW ENTRY */}
+  const filteredItems = useMemo(() => {
+    const q = search.toLowerCase();
+    return (vault.items || []).filter((item) =>
+      [item.title, item.username, item.notes]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [search, vault.items]);
+
+  /* ---------------- UI ---------------- */
+
+  return (
+    <div style={{ padding: 24, maxWidth: 900 }}>
+      <h2>🔑 Saved Passwords</h2>
+
+      {/* SEARCH */}
+      <input
+        placeholder="🔍 Search (bank, email, IFSC, hint...)"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ width: "100%", marginBottom: 16 }}
+      />
+
+      {/* ADD FORM */}
       <form onSubmit={handleAdd}>
         <input
-          placeholder="Title"
+          placeholder="Title (Bank / Gmail / Instagram)"
           value={newItem.title}
           onChange={(e) =>
             setNewItem({ ...newItem, title: e.target.value })
           }
         />
+
         <input
           placeholder="Username / ID"
           value={newItem.username}
@@ -73,6 +104,7 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
             setNewItem({ ...newItem, username: e.target.value })
           }
         />
+
         <input
           placeholder="Password"
           value={newItem.password}
@@ -80,21 +112,27 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
             setNewItem({ ...newItem, password: e.target.value })
           }
         />
+
         <textarea
-          placeholder="Notes"
+          placeholder="Notes (account no, IFSC, security Q, hints)"
           rows={2}
           value={newItem.notes}
           onChange={(e) =>
             setNewItem({ ...newItem, notes: e.target.value })
           }
         />
-        <button type="submit">Add</button>
+
+        <button type="submit">➕ Add Entry</button>
       </form>
 
       <hr />
 
       {/* LIST */}
-      {(vault.items || []).map((item) => {
+      {filteredItems.length === 0 && (
+        <p style={{ opacity: 0.6 }}>No entries found</p>
+      )}
+
+      {filteredItems.map((item) => {
         const isEditing = editingId === item.id;
         const isVisible = visibleMap[item.id];
 
@@ -103,42 +141,57 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
             key={item.id}
             style={{
               marginBottom: 16,
-              padding: 12,
+              padding: 14,
               border: "1px solid #333",
-              borderRadius: 10,
+              borderRadius: 12,
+              lineHeight: 1.6,
             }}
           >
             {/* TITLE */}
-            {isEditing ? (
-              <input
-                value={editItem.title}
-                onChange={(e) =>
-                  setEditItem({ ...editItem, title: e.target.value })
-                }
-              />
-            ) : (
-              <strong>{item.title}</strong>
-            )}
+            <div>
+              <strong>Title:</strong>{" "}
+              {isEditing ? (
+                <input
+                  value={editItem.title}
+                  onChange={(e) =>
+                    setEditItem({ ...editItem, title: e.target.value })
+                  }
+                />
+              ) : (
+                item.title
+              )}
+            </div>
 
             {/* USERNAME */}
-            {isEditing ? (
-              <input
-                value={editItem.username || ""}
-                onChange={(e) =>
-                  setEditItem({ ...editItem, username: e.target.value })
-                }
-              />
-            ) : (
-              item.username && <div>ID: {item.username}</div>
-            )}
+            <div>
+              <strong>Username / ID:</strong>{" "}
+              {isEditing ? (
+                <input
+                  value={editItem.username || ""}
+                  onChange={(e) =>
+                    setEditItem({
+                      ...editItem,
+                      username: e.target.value,
+                    })
+                  }
+                />
+              ) : (
+                item.username || "—"
+              )}
+            </div>
 
             {/* PASSWORD */}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <strong>Password:</strong>
+
               {isEditing ? (
                 <input
                   value={editItem.password}
                   onChange={(e) =>
-                    setEditItem({ ...editItem, password: e.target.value })
+                    setEditItem({
+                      ...editItem,
+                      password: e.target.value,
+                    })
                   }
                 />
               ) : (
@@ -160,19 +213,25 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
             </div>
 
             {/* NOTES */}
-            {isEditing ? (
-              <textarea
-                rows={2}
-                value={editItem.notes || ""}
-                onChange={(e) =>
-                  setEditItem({ ...editItem, notes: e.target.value })
-                }
-              />
-            ) : (
-              item.notes && (
-                <pre style={{ whiteSpace: "pre-wrap" }}>{item.notes}</pre>
-              )
-            )}
+            <div>
+              <strong>Notes:</strong>
+              {isEditing ? (
+                <textarea
+                  rows={2}
+                  value={editItem.notes || ""}
+                  onChange={(e) =>
+                    setEditItem({
+                      ...editItem,
+                      notes: e.target.value,
+                    })
+                  }
+                />
+              ) : (
+                <pre style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+                  {item.notes || "—"}
+                </pre>
+              )}
+            </div>
 
             {/* ACTIONS */}
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -183,7 +242,9 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
                 </>
               ) : (
                 <>
-                  <button onClick={() => startEdit(item)}>✏️ Edit</button>
+                  <button onClick={() => startEdit(item)}>
+                    ✏️ Edit
+                  </button>
                   <button
                     onClick={() => {
                       if (confirm("Delete this entry?")) {
