@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import SignupVault from "./pages/SignupVault";
 import UnlockVault from "./pages/UnlockVault";
 import Vault from "./pages/Vault";
@@ -12,8 +12,36 @@ import { EMPTY_VAULT } from "./vault/vaultHeader";
 export default function App() {
   const [vaultState, setVaultState] = useState(VAULT_STATE.LOADING);
   const [vaultData, setVaultData] = useState(null);
+  const [sessionKey, setSessionKey] = useState(null);
+  const [vaultSalt, setVaultSalt] = useState(null); // 🔥 IMPORTANT
 
-  // 🔥 Check backend on app load
+  const lockTimer = useRef(null);
+
+  /* -------------------- AUTO LOCK -------------------- */
+
+  function lockVault() {
+    setVaultData(null);
+    setSessionKey(null);
+    setVaultSalt(null);
+    setVaultState(VAULT_STATE.LOCKED);
+
+    if (lockTimer.current) {
+      clearTimeout(lockTimer.current);
+      lockTimer.current = null;
+    }
+  }
+
+  function resetAutoLock() {
+    if (lockTimer.current) clearTimeout(lockTimer.current);
+
+    lockTimer.current = setTimeout(() => {
+      alert("Vault auto-locked due to inactivity");
+      lockVault();
+    }, 3 * 60 * 1000); // ✅ 3 minutes
+  }
+
+  /* -------------------- CHECK VAULT ON LOAD -------------------- */
+
   useEffect(() => {
     async function checkVault() {
       try {
@@ -33,7 +61,8 @@ export default function App() {
     checkVault();
   }, []);
 
-  // 🆕 Signup → encrypt empty vault → save to backend
+  /* -------------------- SIGNUP -------------------- */
+
   async function handleSignup({ masterPassword }) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(masterPassword, salt);
@@ -49,10 +78,12 @@ export default function App() {
       }),
     });
 
+    setVaultSalt(salt); // ✅ STORE SALT
     setVaultState(VAULT_STATE.LOCKED);
   }
 
-  // 🔓 Unlock → decrypt vault → load data
+  /* -------------------- UNLOCK -------------------- */
+
   async function handleUnlock(masterPassword) {
     try {
       const res = await fetch("http://localhost:4000/api/vault");
@@ -64,7 +95,6 @@ export default function App() {
       const key = await deriveKey(masterPassword, salt);
       const decryptedVault = await decryptData(key, encryptedVault);
 
-      // 🛡 normalize (old vault safety)
       const normalizedVault = {
         version: decryptedVault.version ?? 1,
         createdAt: decryptedVault.createdAt ?? Date.now(),
@@ -72,48 +102,58 @@ export default function App() {
       };
 
       setVaultData(normalizedVault);
+      setSessionKey(key);
+      setVaultSalt(salt); // 🔥 CRITICAL FIX
       setVaultState(VAULT_STATE.UNLOCKED);
+
+      resetAutoLock();
     } catch {
       alert("Wrong master password");
     }
   }
 
-  // ➕ Add password + notes entry
+  /* -------------------- ADD ITEM -------------------- */
+
   async function addVaultItem(item) {
+    if (!sessionKey || !vaultSalt) {
+      lockVault();
+      return;
+    }
+
     const updatedVault = {
       ...vaultData,
       items: [...vaultData.items, item],
     };
 
+    setVaultData(updatedVault); // show immediately
     await saveUpdatedVault(updatedVault);
+    resetAutoLock();
   }
 
-  // 🔐 Helper: re-encrypt + save vault
+  /* -------------------- SAVE VAULT -------------------- */
+
   async function saveUpdatedVault(updatedVault) {
-    const res = await fetch("http://localhost:4000/api/vault");
-    const data = await res.json();
+    if (!sessionKey || !vaultSalt) {
+      lockVault();
+      return;
+    }
 
-    const salt = new Uint8Array(data.vault.salt);
-    const password = prompt("Enter master password to save changes");
-
-    if (!password) return;
-
-    const key = await deriveKey(password, salt);
-    const encryptedVault = await encryptData(key, updatedVault);
+    const encryptedVault = await encryptData(sessionKey, updatedVault);
 
     await fetch("http://localhost:4000/api/vault", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         encryptedVault,
-        salt: Array.from(salt),
+        salt: Array.from(vaultSalt), // 🔥 THIS FIXES 400 ERROR
       }),
     });
 
     setVaultData(updatedVault);
   }
 
-  // ⏳ Loading screen
+  /* -------------------- UI -------------------- */
+
   if (vaultState === VAULT_STATE.LOADING) {
     return <p style={{ padding: 24 }}>Loading CipherCell…</p>;
   }
@@ -130,8 +170,14 @@ export default function App() {
 
       {vaultState === VAULT_STATE.UNLOCKED && vaultData && (
         <>
-          <h1 style={{ padding: 24 }}>🔐 CipherCell Vault</h1>
-          <Vault vault={vaultData} onAdd={addVaultItem} />
+          <div style={{ padding: 24, display: "flex", gap: 16 }}>
+            <h1>🔐 CipherCell Vault</h1>
+            <button onClick={lockVault}>🔒 Logout</button>
+          </div>
+
+          <div onClick={resetAutoLock} onKeyDown={resetAutoLock}>
+            <Vault vault={vaultData} onAdd={addVaultItem} />
+          </div>
         </>
       )}
     </>

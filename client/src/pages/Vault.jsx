@@ -6,6 +6,9 @@ export default function Vault({ vault, onAdd }) {
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
 
+  // 👁️ track visible passwords (per item)
+  const [visible, setVisible] = useState({});
+
   function handleAdd(e) {
     e.preventDefault();
     if (!title || !password) return;
@@ -24,10 +27,18 @@ export default function Vault({ vault, onAdd }) {
     setNotes("");
   }
 
+  function toggleVisibility(id) {
+    setVisible((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 700 }}>
+    <div style={{ padding: 24, maxWidth: 720 }}>
       <h2>🔑 Passwords</h2>
 
+      {/* ADD FORM */}
       <form onSubmit={handleAdd}>
         <input
           placeholder="Title (Gmail / Bank / Instagram)"
@@ -48,7 +59,7 @@ export default function Vault({ vault, onAdd }) {
         />
 
         <textarea
-          placeholder="Notes / hints / bank details / IFSC / recovery info"
+          placeholder="Notes / bank details / IFSC / hints"
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -59,27 +70,49 @@ export default function Vault({ vault, onAdd }) {
 
       <hr />
 
-      {(vault.items || []).map((item) => (
-        <div
-          key={item.id}
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            border: "1px solid #333",
-            borderRadius: 8,
-          }}
-        >
-          <strong>{item.title}</strong>
-          <div>ID: {item.username}</div>
-          <div>Password: {item.password}</div>
+      {/* LIST */}
+      {(vault.items || []).map((item) => {
+        const isVisible = visible[item.id];
+        console.log("VAULT ITEMS:", vault.items);
 
-          {item.notes && (
-            <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
-              {item.notes}
-            </pre>
-          )}
-        </div>
-      ))}
+        return (
+          <div
+            key={item.id}
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              border: "1px solid #333",
+              borderRadius: 10,
+            }}
+          >
+            <strong>{item.title}</strong>
+
+            {item.username && <div>ID: {item.username}</div>}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>
+                Password:{" "}
+                {isVisible ? item.password : "••••••••"}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => toggleVisibility(item.id)}
+              >
+                {isVisible ? "🙈 Hide" : "👁 Show"}
+              </button>
+            </div>
+
+            {item.notes && (
+              <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
+                {item.notes}
+              </pre>
+            )}
+          </div>
+          
+        );
+        
+      })}
     </div>
   );
 }
