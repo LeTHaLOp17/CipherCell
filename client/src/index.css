@@ -1,64 +1,309 @@
+/* =========================================================
+   CIPHERCELL — DEEP PURPLE GLASS THEME
+   ========================================================= */
+
 :root {
+  /* ---------- BACKGROUND (PURPLE DOMINANT) ---------- */
   --bg: radial-gradient(
     1200px circle at top,
-    #1a1f2b 0%,
-    #0b0f14 60%
+    #2a1f3d 0%,     /* deep purple */
+    #120b1f 65%     /* almost black purple */
   );
 
-  --glass-bg: rgba(255, 255, 255, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.18);
+  /* ---------- GLASS ---------- */
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(200, 170, 255, 0.22);
 
-  --text: #f2f5f9;
-  --muted: #aab3c2;
-  --accent: #5b8cff;
+  /* ---------- TEXT ---------- */
+  --text: #f6f4ff;
+  --muted: #b6accf;
+
+  /* ---------- PURPLE SYSTEM ---------- */
+  --accent: #b38cff;            /* main purple */
+  --accent-strong: #d0b3ff;     /* lighter purple */
+  --accent-soft: rgba(179, 140, 255, 0.22);
+  --accent-glow: rgba(179, 140, 255, 0.45);
+
+  /* ---------- STATES ---------- */
   --danger: #ff6b6b;
+  --success: #4ade80;
 }
 
-/* ---------- RESET ---------- */
+/* =========================================================
+   RESET & BASE
+   ========================================================= */
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-
-  /* 🔥 IMPORTANT FOR SCROLL */
-  height: auto;          /* ❌ not 100vh */
-  min-height: 100%;
-  overflow-y: auto;      /* ✅ allow page scroll */
+html {
+  scroll-behavior: smooth;
 }
 
-/* ---------- BODY ---------- */
-
+html,
 body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui;
-
-  /* ❌ REMOVED: overflow: hidden */
+  overflow-y: auto;
 }
-
-/* ---------- ROOT ---------- */
 
 #root {
   min-height: 100%;
 }
 
-/* ---------- FORMS ---------- */
+p {
+  color: var(--muted);
+}
+
+/* =========================================================
+   GLOBAL CONTROLS
+   ========================================================= */
 
 input,
-button,
 textarea,
-select {
+select,
+button {
   font-family: inherit;
   color: inherit;
 }
 
-/* OPTIONAL: smooth scrolling */
-html {
-  scroll-behavior: smooth;
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(200,170,255,0.25);
+  background: rgba(255,255,255,0.06);
+  transition: border 0.2s ease, background 0.2s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255,255,255,0.1);
+}
+
+/* =========================================================
+   BUTTONS (PURE PURPLE)
+   ========================================================= */
+
+button {
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(
+    180deg,
+    #d0b3ff,
+    #a06bff
+  );
+  color: #120b1f;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 30px var(--accent-glow);
+}
+
+button:active {
+  transform: scale(0.96);
+}
+
+/* =========================================================
+   GLASS (PURPLE TINTED)
+   ========================================================= */
+
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.08),
+    rgba(255,255,255,0.04)
+  );
+  backdrop-filter: blur(32px) saturate(130%);
+  -webkit-backdrop-filter: blur(32px) saturate(130%);
+  border-radius: 18px;
+  border: 1px solid rgba(200,170,255,0.25);
+  box-shadow:
+    0 20px 50px rgba(0,0,0,0.65),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+
+.vault-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 28px;
+  padding: 24px;
+}
+
+@media (max-width: 900px) {
+  .vault-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+.vault-sidebar {
+  position: sticky;
+  top: 24px;
+  padding: 20px;
+  animation: slideIn 0.5s ease;
+}
+
+/* =========================================================
+   LIST
+   ========================================================= */
+
+.vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* =========================================================
+   CARD (PURPLE DEPTH)
+   ========================================================= */
+
+.vault-card {
+  padding: 20px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.055);
+  border: 1px solid rgba(200,170,255,0.25);
+  animation: fadeUp 0.35s ease both;
+}
+
+.vault-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 22px 48px rgba(179,140,255,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.14);
+}
+
+/* =========================================================
+   CARD HEADER
+   ========================================================= */
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* =========================================================
+   CATEGORY CHIP (VERY PURPLE)
+   ========================================================= */
+
+.chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(179,140,255,0.35),
+    rgba(179,140,255,0.18)
+  );
+  color: #f5efff;
+  border: 1px solid rgba(200,170,255,0.45);
+}
+
+/* =========================================================
+   PASSWORD ROW
+   ========================================================= */
+
+.password-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.password-text {
+  color: #f0eaff;
+  letter-spacing: 1.3px;
+  font-size: 15px;
+}
+
+.password-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.password-actions button {
+  padding: 7px 10px;
+  font-size: 14px;
+  background: rgba(179,140,255,0.3);
+  color: #f5efff;
+}
+
+.password-actions button:hover {
+  background: rgba(179,140,255,0.45);
+}
+
+/* =========================================================
+   SELECT FIX (PURPLE DARK MODE)
+   ========================================================= */
+
+select {
+  background-color: rgba(255,255,255,0.08);
+  color: var(--text);
+  border: 1px solid rgba(200,170,255,0.3);
+}
+
+select option {
+  background-color: #120b1f;
+  color: #f6f4ff;
+}
+
+select option:checked {
+  background-color: #2a1f3d;
+  color: #ffffff;
+}
+
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }

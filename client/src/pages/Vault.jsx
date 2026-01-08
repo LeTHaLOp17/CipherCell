@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 
-const CATEGORIES = ["All", "Bank", "Social", "Work", "Other"];
+const CATEGORIES = ["Bank", "Social", "Work", "Other"];
 
 export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
-  const [newItem, setNewItem] = useState({
+  const [form, setForm] = useState({
     title: "",
     username: "",
     password: "",
@@ -12,24 +12,18 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   });
 
   const [editingId, setEditingId] = useState(null);
-  const [editItem, setEditItem] = useState({});
-  const [visibleMap, setVisibleMap] = useState({});
+  const [edit, setEdit] = useState({});
+  const [visible, setVisible] = useState({});
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
 
-  /* ---------------- ADD ---------------- */
-
-  function handleAdd(e) {
+  /* ---------- ADD ---------- */
+  function submit(e) {
     e.preventDefault();
-    if (!newItem.title || !newItem.password) return;
+    if (!form.title || !form.password) return;
 
-    onAdd({
-      id: crypto.randomUUID(),
-      ...newItem,
-    });
-
-    setNewItem({
+    onAdd({ id: crypto.randomUUID(), ...form });
+    setForm({
       title: "",
       username: "",
       password: "",
@@ -38,276 +32,197 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
     });
   }
 
-  /* ---------------- EDIT ---------------- */
+  /* ---------- FILTER ---------- */
+  const items = useMemo(() => {
+    const q = search.toLowerCase();
+    return vault.items.filter((i) =>
+      [i.title, i.username, i.notes, i.category]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [search, vault.items]);
 
-  function startEdit(item) {
-    setEditingId(item.id);
-    setEditItem({ ...item });
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setEditItem({});
-  }
-
-  function saveEdit() {
-    onUpdate(editItem);
-    cancelEdit();
-  }
-
-  /* ---------------- UTILS ---------------- */
-
+  /* ---------- UTILS ---------- */
   function togglePassword(id) {
-    setVisibleMap((p) => ({ ...p, [id]: !p[id] }));
+    setVisible((v) => ({ ...v, [id]: !v[id] }));
   }
 
   async function copyPassword(item) {
     await navigator.clipboard.writeText(item.password);
     setCopiedId(item.id);
-    setTimeout(() => {
-      navigator.clipboard.writeText("");
-      setCopiedId(null);
-    }, 15000);
+    setTimeout(() => setCopiedId(null), 1500);
   }
 
-  /* ---------------- FILTER ---------------- */
-
-  const filteredItems = useMemo(() => {
-    const q = search.toLowerCase();
-
-    return (vault.items || []).filter((item) => {
-      const matchesSearch = [item.title, item.username, item.notes]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
-
-      const matchesCategory =
-        categoryFilter === "All" || item.category === categoryFilter;
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [search, categoryFilter, vault.items]);
-
-  /* ---------------- UI ---------------- */
-
   return (
-    <div style={{ padding: 24, maxWidth: 900 }}>
-      <h2>🔑 Saved Passwords</h2>
+    <div className="vault-layout">
+      {/* ---------- ADD ENTRY ---------- */}
+      <div className="vault-sidebar glass">
+        <h3 style={{ marginBottom: 16 }}>➕ Add Entry</h3>
 
-      {/* SEARCH + CATEGORY FILTER */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <input
-          placeholder="🔍 Search (bank, email, IFSC...)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1 }}
-        />
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            placeholder="Title (Gmail / Bank / Insta)"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
+          <input
+            placeholder="Username / ID"
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+          />
+
+          <input
+            placeholder="Password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+
+          <select
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+
+          <textarea
+            rows={2}
+            placeholder="Notes / IFSC / hints"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+
+          <button type="submit">Add Entry</button>
+        </form>
       </div>
 
-      {/* ADD FORM */}
-      <form onSubmit={handleAdd}>
-        <input
-          placeholder="Title"
-          value={newItem.title}
-          onChange={(e) =>
-            setNewItem({ ...newItem, title: e.target.value })
-          }
-        />
+      {/* ---------- LIST ---------- */}
+      <div>
+        <h2 style={{ marginBottom: 12 }}>🔐 Saved Passwords</h2>
 
         <input
-          placeholder="Username / ID"
-          value={newItem.username}
-          onChange={(e) =>
-            setNewItem({ ...newItem, username: e.target.value })
-          }
+          placeholder="🔍 Search anything"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginBottom: 20 }}
         />
 
-        <input
-          placeholder="Password"
-          value={newItem.password}
-          onChange={(e) =>
-            setNewItem({ ...newItem, password: e.target.value })
-          }
-        />
+        <div className="vault-list">
+          {items.map((item) => {
+            const isEdit = editingId === item.id;
+            const isVisible = visible[item.id];
 
-        <select
-          value={newItem.category}
-          onChange={(e) =>
-            setNewItem({ ...newItem, category: e.target.value })
-          }
-        >
-          {CATEGORIES.filter((c) => c !== "All").map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
+            return (
+              <div key={item.id} className="vault-card">
+                <div className="card-header">
+                  {isEdit ? (
+                    <input
+                      value={edit.title}
+                      onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                    />
+                  ) : (
+                    <h3 style={{ margin: 0 }}>{item.title}</h3>
+                  )}
 
-        <textarea
-          placeholder="Notes (account no, IFSC, hints)"
-          rows={2}
-          value={newItem.notes}
-          onChange={(e) =>
-            setNewItem({ ...newItem, notes: e.target.value })
-          }
-        />
+                  <span className="chip">{item.category || "Other"}</span>
+                </div>
 
-        <button type="submit">➕ Add Entry</button>
-      </form>
+                <p style={{ marginTop: 12 }}>
+                  <b>ID:</b>{" "}
+                  {isEdit ? (
+                    <input
+                      value={edit.username || ""}
+                      onChange={(e) => setEdit({ ...edit, username: e.target.value })}
+                    />
+                  ) : (
+                    item.username || "—"
+                  )}
+                </p>
 
-      <hr />
+                <div className="password-row">
+                  <b>Password:</b>
 
-      {/* LIST */}
-      {filteredItems.length === 0 && (
-        <p style={{ opacity: 0.6 }}>No entries found</p>
-      )}
+                  {isEdit ? (
+                    <input
+                      value={edit.password}
+                      onChange={(e) => setEdit({ ...edit, password: e.target.value })}
+                    />
+                  ) : (
+                    <code className="password-text">
+                      {isVisible ? item.password : "••••••••"}
+                    </code>
+                  )}
 
-      {filteredItems.map((item) => {
-        const isEditing = editingId === item.id;
-        const isVisible = visibleMap[item.id];
+                  {!isEdit && (
+                    <div className="password-actions">
+                      <button onClick={() => togglePassword(item.id)}>
+                        {isVisible ? "🙈" : "👁"}
+                      </button>
+                      <button onClick={() => copyPassword(item)}>
+                        {copiedId === item.id ? "✅" : "📋"}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-        return (
-          <div
-            key={item.id}
-            style={{
-              marginBottom: 16,
-              padding: 14,
-              border: "1px solid #333",
-              borderRadius: 12,
-              lineHeight: 1.6,
-            }}
-          >
-            <div>
-              <strong>Title:</strong>{" "}
-              {isEditing ? (
-                <input
-                  value={editItem.title}
-                  onChange={(e) =>
-                    setEditItem({ ...editItem, title: e.target.value })
-                  }
-                />
-              ) : (
-                item.title
-              )}
-            </div>
+                <div style={{ marginTop: 12 }}>
+                  <b>Notes:</b>
+                  {isEdit ? (
+                    <textarea
+                      rows={2}
+                      value={edit.notes || ""}
+                      onChange={(e) => setEdit({ ...edit, notes: e.target.value })}
+                    />
+                  ) : (
+                    <p style={{ opacity: 0.85, marginTop: 4 }}>
+                      {item.notes || "—"}
+                    </p>
+                  )}
+                </div>
 
-            <div>
-              <strong>Category:</strong>{" "}
-              {isEditing ? (
-                <select
-                  value={editItem.category || "Other"}
-                  onChange={(e) =>
-                    setEditItem({
-                      ...editItem,
-                      category: e.target.value,
-                    })
-                  }
-                >
-                  {CATEGORIES.filter((c) => c !== "All").map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              ) : (
-                item.category || "Other"
-              )}
-            </div>
-
-            <div>
-              <strong>Username / ID:</strong>{" "}
-              {isEditing ? (
-                <input
-                  value={editItem.username || ""}
-                  onChange={(e) =>
-                    setEditItem({
-                      ...editItem,
-                      username: e.target.value,
-                    })
-                  }
-                />
-              ) : (
-                item.username || "—"
-              )}
-            </div>
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <strong>Password:</strong>
-              {isEditing ? (
-                <input
-                  value={editItem.password}
-                  onChange={(e) =>
-                    setEditItem({
-                      ...editItem,
-                      password: e.target.value,
-                    })
-                  }
-                />
-              ) : (
-                <code>{isVisible ? item.password : "••••••••"}</code>
-              )}
-
-              {!isEditing && (
-                <>
-                  <button onClick={() => togglePassword(item.id)}>
-                    {isVisible ? "🙈" : "👁"}
-                  </button>
-                  <button onClick={() => copyPassword(item)}>
-                    {copiedId === item.id ? "✅" : "📋"}
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div>
-              <strong>Notes:</strong>
-              {isEditing ? (
-                <textarea
-                  rows={2}
-                  value={editItem.notes || ""}
-                  onChange={(e) =>
-                    setEditItem({
-                      ...editItem,
-                      notes: e.target.value,
-                    })
-                  }
-                />
-              ) : (
-                <pre style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
-                  {item.notes || "—"}
-                </pre>
-              )}
-            </div>
-
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              {isEditing ? (
-                <>
-                  <button onClick={saveEdit}>💾 Save</button>
-                  <button onClick={cancelEdit}>✖ Cancel</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => startEdit(item)}>✏️ Edit</button>
-                  <button
-                    onClick={() => {
-                      if (confirm("Delete this entry?")) {
-                        onDelete(item.id);
-                      }
-                    }}
-                  >
-                    🗑️ Delete
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })}
+                <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+                  {isEdit ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          onUpdate(edit);
+                          setEditingId(null);
+                        }}
+                      >
+                        💾 Save
+                      </button>
+                      <button onClick={() => setEditingId(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEdit(item);
+                        }}
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("Delete this entry?")) {
+                            onDelete(item.id);
+                          }
+                        }}
+                      >
+                        🗑 Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
