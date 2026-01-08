@@ -1,11 +1,14 @@
 import { useState, useMemo } from "react";
 
+const CATEGORIES = ["All", "Bank", "Social", "Work", "Other"];
+
 export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   const [newItem, setNewItem] = useState({
     title: "",
     username: "",
     password: "",
     notes: "",
+    category: "Other",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -13,6 +16,7 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   const [visibleMap, setVisibleMap] = useState({});
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
 
   /* ---------------- ADD ---------------- */
 
@@ -25,7 +29,13 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
       ...newItem,
     });
 
-    setNewItem({ title: "", username: "", password: "", notes: "" });
+    setNewItem({
+      title: "",
+      username: "",
+      password: "",
+      notes: "",
+      category: "Other",
+    });
   }
 
   /* ---------------- EDIT ---------------- */
@@ -54,24 +64,29 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
   async function copyPassword(item) {
     await navigator.clipboard.writeText(item.password);
     setCopiedId(item.id);
-
     setTimeout(() => {
       navigator.clipboard.writeText("");
       setCopiedId(null);
     }, 15000);
   }
 
-  /* ---------------- SEARCH ---------------- */
+  /* ---------------- FILTER ---------------- */
 
   const filteredItems = useMemo(() => {
     const q = search.toLowerCase();
-    return (vault.items || []).filter((item) =>
-      [item.title, item.username, item.notes]
+
+    return (vault.items || []).filter((item) => {
+      const matchesSearch = [item.title, item.username, item.notes]
         .join(" ")
         .toLowerCase()
-        .includes(q)
-    );
-  }, [search, vault.items]);
+        .includes(q);
+
+      const matchesCategory =
+        categoryFilter === "All" || item.category === categoryFilter;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [search, categoryFilter, vault.items]);
 
   /* ---------------- UI ---------------- */
 
@@ -79,18 +94,29 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
     <div style={{ padding: 24, maxWidth: 900 }}>
       <h2>🔑 Saved Passwords</h2>
 
-      {/* SEARCH */}
-      <input
-        placeholder="🔍 Search (bank, email, IFSC, hint...)"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ width: "100%", marginBottom: 16 }}
-      />
+      {/* SEARCH + CATEGORY FILTER */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <input
+          placeholder="🔍 Search (bank, email, IFSC...)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1 }}
+        />
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
 
       {/* ADD FORM */}
       <form onSubmit={handleAdd}>
         <input
-          placeholder="Title (Bank / Gmail / Instagram)"
+          placeholder="Title"
           value={newItem.title}
           onChange={(e) =>
             setNewItem({ ...newItem, title: e.target.value })
@@ -113,8 +139,19 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
           }
         />
 
+        <select
+          value={newItem.category}
+          onChange={(e) =>
+            setNewItem({ ...newItem, category: e.target.value })
+          }
+        >
+          {CATEGORIES.filter((c) => c !== "All").map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+
         <textarea
-          placeholder="Notes (account no, IFSC, security Q, hints)"
+          placeholder="Notes (account no, IFSC, hints)"
           rows={2}
           value={newItem.notes}
           onChange={(e) =>
@@ -147,7 +184,6 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               lineHeight: 1.6,
             }}
           >
-            {/* TITLE */}
             <div>
               <strong>Title:</strong>{" "}
               {isEditing ? (
@@ -162,7 +198,27 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               )}
             </div>
 
-            {/* USERNAME */}
+            <div>
+              <strong>Category:</strong>{" "}
+              {isEditing ? (
+                <select
+                  value={editItem.category || "Other"}
+                  onChange={(e) =>
+                    setEditItem({
+                      ...editItem,
+                      category: e.target.value,
+                    })
+                  }
+                >
+                  {CATEGORIES.filter((c) => c !== "All").map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              ) : (
+                item.category || "Other"
+              )}
+            </div>
+
             <div>
               <strong>Username / ID:</strong>{" "}
               {isEditing ? (
@@ -180,10 +236,8 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               )}
             </div>
 
-            {/* PASSWORD */}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <strong>Password:</strong>
-
               {isEditing ? (
                 <input
                   value={editItem.password}
@@ -195,9 +249,7 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
                   }
                 />
               ) : (
-                <code>
-                  {isVisible ? item.password : "••••••••"}
-                </code>
+                <code>{isVisible ? item.password : "••••••••"}</code>
               )}
 
               {!isEditing && (
@@ -212,7 +264,6 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               )}
             </div>
 
-            {/* NOTES */}
             <div>
               <strong>Notes:</strong>
               {isEditing ? (
@@ -233,7 +284,6 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               )}
             </div>
 
-            {/* ACTIONS */}
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               {isEditing ? (
                 <>
@@ -242,9 +292,7 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
                 </>
               ) : (
                 <>
-                  <button onClick={() => startEdit(item)}>
-                    ✏️ Edit
-                  </button>
+                  <button onClick={() => startEdit(item)}>✏️ Edit</button>
                   <button
                     onClick={() => {
                       if (confirm("Delete this entry?")) {
