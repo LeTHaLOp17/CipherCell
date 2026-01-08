@@ -176,7 +176,27 @@ export default function App() {
           </div>
 
           <div onClick={resetAutoLock} onKeyDown={resetAutoLock}>
-            <Vault vault={vaultData} onAdd={addVaultItem} />
+            <Vault
+  vault={vaultData}
+  onAdd={addVaultItem}
+  onUpdate={(item) => {
+    const updated = {
+      ...vaultData,
+      items: vaultData.items.map((i) =>
+        i.id === item.id ? item : i
+      ),
+    };
+    saveUpdatedVault(updated);
+  }}
+  onDelete={(id) => {
+    const updated = {
+      ...vaultData,
+      items: vaultData.items.filter((i) => i.id !== id),
+    };
+    saveUpdatedVault(updated);
+  }}
+/>
+
           </div>
         </>
       )}
