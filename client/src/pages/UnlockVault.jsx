@@ -1,42 +1,114 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export default function UnlockVault({ onUnlock }) {
+export default function UnlockVault({
+  onUnlock,
+  lockedUntil = 0,
+  failedAttempts = 0,
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  const [remaining, setRemaining] = useState(() => {
+    if (!lockedUntil) return 0;
+    return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+  });
+
+  /* ---------------- COUNTDOWN (CLEAN & SAFE) ---------------- */
+
+  useEffect(() => {
+    if (!lockedUntil) return;
+
+    const interval = setInterval(() => {
+      const diff = lockedUntil - Date.now();
+
+      setRemaining((prev) => {
+        if (diff <= 0) {
+          clearInterval(interval);
+          return 0;
+        }
+        const next = Math.ceil(diff / 1000);
+        return prev !== next ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
+  const isLocked = remaining > 0;
 
   function handleSubmit(e) {
     e.preventDefault();
 
+    if (isLocked) return;
+
     if (!password) {
-      setError("Enter your master password");
+      setError("Master password is required");
       return;
     }
 
     setError("");
-    onUnlock(password); // password used later for crypto
+    onUnlock(password);
+    setPassword("");
   }
 
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  /* ---------------- UI ---------------- */
+
   return (
-    <div style={styles.wrapper}>
-      <div style={styles.glassCard}>
-        <h2 style={styles.title}>Unlock Vault</h2>
-        <p style={styles.subtitle}>
-          Enter your master password to continue.
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <div style={styles.brand}>CipherCell</div>
+
+        <h1 style={styles.heading}>Unlock Vault</h1>
+
+        <p style={styles.description}>
+          Enter your master password to access your encrypted data.
         </p>
 
         <form onSubmit={handleSubmit}>
           <input
-            style={styles.input}
             type="password"
             placeholder="Master password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            required
+            disabled={isLocked}
+            style={{
+              ...styles.input,
+              opacity: isLocked ? 0.5 : 1,
+            }}
           />
 
-          {error && <p style={styles.error}>{error}</p>}
+          {/* STATUS TEXT (SUBTLE, NOT SCREAMING) */}
+          {isLocked && (
+            <p style={styles.lockText}>
+              Too many failed attempts. Try again in{" "}
+              <strong>{formatTime(remaining)}</strong>.
+            </p>
+          )}
 
-          <button style={styles.button} type="submit">
+          {!isLocked && failedAttempts > 0 && (
+            <p style={styles.warningText}>
+              {failedAttempts} unsuccessful attempt
+              {failedAttempts > 1 ? "s" : ""}.
+            </p>
+          )}
+
+          {error && <p style={styles.errorText}>{error}</p>}
+
+          <button
+            type="submit"
+            disabled={isLocked}
+            style={{
+              ...styles.button,
+              opacity: isLocked ? 0.5 : 1,
+              cursor: isLocked ? "not-allowed" : "pointer",
+            }}
+          >
             Unlock
           </button>
         </form>
@@ -45,58 +117,93 @@ export default function UnlockVault({ onUnlock }) {
   );
 }
 
+/* ================= STYLES ================= */
+
 const styles = {
-  wrapper: {
-    position: "fixed",
-    inset: 0,
+  page: {
+    minHeight: "100vh",
     display: "grid",
     placeItems: "center",
-    padding: 16,
+    padding: 20,
   },
-  glassCard: {
+
+  card: {
     width: "100%",
     maxWidth: 420,
-    padding: 24,
+    padding: "32px 28px",
     borderRadius: 20,
-    background: "var(--glass-bg)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    border: "1px solid var(--glass-border)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
+    backdropFilter: "blur(32px)",
+    WebkitBackdropFilter: "blur(32px)",
+    border: "1px solid rgba(200,170,255,0.25)",
+    boxShadow:
+      "0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08)",
   },
-  title: {
-    margin: 0,
-    fontSize: 24,
+
+  brand: {
+    fontSize: 13,
+    letterSpacing: 1.2,
     fontWeight: 600,
+    textTransform: "uppercase",
+    color: "var(--muted)",
+    marginBottom: 12,
   },
-  subtitle: {
+
+  heading: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 600,
+    letterSpacing: 0.3,
+  },
+
+  description: {
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 28,
     fontSize: 14,
     color: "var(--muted)",
+    lineHeight: 1.6,
   },
+
   input: {
     width: "100%",
     padding: "14px 16px",
-    marginBottom: 14,
     borderRadius: 14,
-    border: "1px solid var(--glass-border)",
+    border: "1px solid rgba(200,170,255,0.3)",
     background: "rgba(255,255,255,0.06)",
     color: "var(--text)",
     fontSize: 16,
+    marginBottom: 10,
   },
+
   button: {
     width: "100%",
+    marginTop: 18,
     padding: 14,
     borderRadius: 14,
     border: "none",
     background:
-      "linear-gradient(180deg, #6fa3ff 0%, #4f7dff 100%)",
-    color: "#fff",
+      "linear-gradient(180deg, rgba(179,140,255,0.9), rgba(155,124,255,0.9))",
+    color: "#120b1f",
     fontWeight: 600,
+    fontSize: 15,
   },
-  error: {
-    color: "var(--danger)",
+
+  lockText: {
     fontSize: 13,
-    marginBottom: 8,
+    color: "var(--muted)",
+    marginTop: 8,
+  },
+
+  warningText: {
+    fontSize: 13,
+    color: "#ffb4b4",
+    marginTop: 8,
+  },
+
+  errorText: {
+    fontSize: 13,
+    color: "var(--danger)",
+    marginTop: 8,
   },
 };

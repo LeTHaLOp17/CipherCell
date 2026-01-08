@@ -9,28 +9,59 @@ import { encryptData } from "./crypto/encrypt";
 import { decryptData } from "./crypto/decrypt";
 import { EMPTY_VAULT } from "./vault/vaultHeader";
 
+/* ---------------- SECURITY CONFIG ---------------- */
+
+const BACKOFF_DELAYS = [
+  15 * 1000,
+  30 * 1000,
+  60 * 1000,
+  2 * 60 * 1000,
+  5 * 60 * 1000,
+];
+
 export default function App() {
   const [vaultState, setVaultState] = useState(VAULT_STATE.LOADING);
   const [vaultData, setVaultData] = useState(null);
   const [sessionKey, setSessionKey] = useState(null);
   const [vaultSalt, setVaultSalt] = useState(null);
 
+  const [failedAttempts, setFailedAttempts] = useState(
+    Number(localStorage.getItem("cc_failures") || 0)
+  );
+  const [lockedUntil, setLockedUntil] = useState(
+    Number(localStorage.getItem("cc_locked_until") || 0)
+  );
+
   const lockTimer = useRef(null);
 
-  /* ---------------- AUTO LOCK ---------------- */
+  /* ---------------- AUTO LOCK (SESSION) ---------------- */
 
   function lockVault() {
     setVaultData(null);
     setSessionKey(null);
     setVaultSalt(null);
     setVaultState(VAULT_STATE.LOCKED);
-    if (lockTimer.current) clearTimeout(lockTimer.current);
+
+    if (lockTimer.current) {
+      clearTimeout(lockTimer.current);
+      lockTimer.current = null;
+    }
   }
 
   function resetAutoLock() {
     if (lockTimer.current) clearTimeout(lockTimer.current);
     lockTimer.current = setTimeout(lockVault, 3 * 60 * 1000);
   }
+
+  /* ---------------- CLEANUP ---------------- */
+
+  useEffect(() => {
+    return () => {
+      if (lockTimer.current) {
+        clearTimeout(lockTimer.current);
+      }
+    };
+  }, []);
 
   /* ---------------- CHECK VAULT ---------------- */
 
@@ -62,9 +93,17 @@ export default function App() {
     setVaultState(VAULT_STATE.LOCKED);
   }
 
-  /* ---------------- UNLOCK ---------------- */
+  /* ---------------- UNLOCK (iOS STYLE) ---------------- */
 
   async function handleUnlock(masterPassword) {
+    const now = Date.now();
+
+    if (lockedUntil && now < lockedUntil) {
+      const seconds = Math.ceil((lockedUntil - now) / 1000);
+      alert(`Too many attempts. Try again in ${seconds}s`);
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:4000/api/vault");
       const data = await res.json();
@@ -82,9 +121,31 @@ export default function App() {
       setSessionKey(key);
       setVaultSalt(salt);
       setVaultState(VAULT_STATE.UNLOCKED);
+
+      setFailedAttempts(0);
+      setLockedUntil(0);
+      localStorage.removeItem("cc_failures");
+      localStorage.removeItem("cc_locked_until");
+
       resetAutoLock();
     } catch {
-      alert("Wrong master password");
+      const nextFailures = failedAttempts + 1;
+      const delay =
+        BACKOFF_DELAYS[Math.min(nextFailures - 1, BACKOFF_DELAYS.length - 1)];
+
+      const lockUntil = Date.now() + delay;
+
+      setFailedAttempts(nextFailures);
+      setLockedUntil(lockUntil);
+
+      localStorage.setItem("cc_failures", nextFailures);
+      localStorage.setItem("cc_locked_until", lockUntil);
+
+      alert(
+        `Wrong password.\nNext attempt allowed in ${Math.ceil(
+          delay / 1000
+        )} seconds`
+      );
     }
   }
 
@@ -103,6 +164,7 @@ export default function App() {
     });
 
     setVaultData(updatedVault);
+    resetAutoLock();
   }
 
   /* ---------------- UI STATES ---------------- */
@@ -114,71 +176,41 @@ export default function App() {
     return <SignupVault onSignup={handleSignup} />;
 
   if (vaultState === VAULT_STATE.LOCKED)
-    return <UnlockVault onUnlock={handleUnlock} />;
+    return (
+      <UnlockVault
+        onUnlock={handleUnlock}
+        lockedUntil={lockedUntil}
+        failedAttempts={failedAttempts}
+      />
+    );
 
   /* ---------------- MAIN UI ---------------- */
 
   return (
     <div onClick={resetAutoLock} onKeyDown={resetAutoLock}>
-      {/* ================= FIXED HEADER ================= */}
       <header
         style={{
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          zIndex: 50,
           height: 64,
-
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-
           padding: "0 28px",
-
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          backdropFilter: "blur(34px)",
           background:
             "linear-gradient(180deg, rgba(155,124,255,0.18), rgba(155,124,255,0.05))",
-          backdropFilter: "blur(34px) saturate(140%)",
-          WebkitBackdropFilter: "blur(34px) saturate(140%)",
-
           borderBottom: "1px solid rgba(200,170,255,0.25)",
-          boxShadow: "0 8px 28px rgba(155,124,255,0.28)",
+          zIndex: 50,
         }}
       >
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            letterSpacing: 0.5,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          🔐 CipherCell
-        </div>
-
-        <button
-          onClick={lockVault}
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(179,140,255,0.35), rgba(155,124,255,0.22))",
-            border: "1px solid rgba(200,170,255,0.35)",
-            padding: "8px 14px",
-            borderRadius: 12,
-          }}
-        >
-          Logout
-        </button>
+        <strong>CipherCell</strong>
+        <button onClick={lockVault}>Logout</button>
       </header>
 
-      {/* ================= SCROLLABLE CONTENT ================= */}
-      <main
-        style={{
-          padding: 24,
-          paddingTop: 64 + 24, // header height + spacing
-        }}
-      >
+      <main style={{ padding: 24, paddingTop: 88 }}>
         <Vault
           vault={vaultData}
           onAdd={(item) =>

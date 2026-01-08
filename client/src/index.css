@@ -307,3 +307,120 @@ select option:checked {
     transform: translateX(0);
   }
 }
+/* =========================================================
+   RESPONSIVE FIXES — CIPHERCELL
+   ========================================================= */
+
+/* ---------- GLOBAL RESPONSIVE ---------- */
+
+@media (max-width: 1024px) {
+  .vault-layout {
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 900px) {
+  .vault-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .vault-sidebar {
+    position: relative;
+    top: 0;
+  }
+}
+
+/* ---------- HEADER RESPONSIVE ---------- */
+
+@media (max-width: 768px) {
+  header {
+    height: 56px !important;
+    padding: 0 16px !important;
+  }
+
+  header strong,
+  header div {
+    font-size: 18px !important;
+  }
+
+  header button {
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ---------- MAIN CONTENT OFFSET ---------- */
+
+@media (max-width: 768px) {
+  main {
+    padding-top: 80px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* ---------- FORM RESPONSIVE ---------- */
+
+@media (max-width: 600px) {
+  input,
+  textarea,
+  select {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  button {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+}
+
+/* ---------- CARD RESPONSIVE ---------- */
+
+@media (max-width: 600px) {
+  .vault-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .vault-card h3 {
+    font-size: 16px;
+  }
+
+  .chip {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+}
+
+/* ---------- PASSWORD ROW WRAP ---------- */
+
+@media (max-width: 480px) {
+  .password-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .password-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- SEARCH BAR ---------- */
+
+@media (max-width: 600px) {
+  .vault-list input[type="text"] {
+    margin-bottom: 14px;
+  }
+}
+
+/* ---------- TOUCH FRIENDLY ---------- */
+
+@media (hover: none) {
+  button:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
