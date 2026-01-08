@@ -14,24 +14,51 @@
   --danger: #ff6b6b;
 }
 
+/* ---------- RESET ---------- */
+
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   width: 100%;
-  height: 100%;
   margin: 0;
+  padding: 0;
+
+  /* 🔥 IMPORTANT FOR SCROLL */
+  height: auto;          /* ❌ not 100vh */
+  min-height: 100%;
+  overflow-y: auto;      /* ✅ allow page scroll */
 }
 
+/* ---------- BODY ---------- */
+
 body {
-  overflow: hidden; /* 🚫 no scrolling */
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui;
+
+  /* ❌ REMOVED: overflow: hidden */
 }
 
+/* ---------- ROOT ---------- */
 
-input, button {
+#root {
+  min-height: 100%;
+}
+
+/* ---------- FORMS ---------- */
+
+input,
+button,
+textarea,
+select {
   font-family: inherit;
+  color: inherit;
+}
+
+/* OPTIONAL: smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
