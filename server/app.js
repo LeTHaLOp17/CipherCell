@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 
 import healthRoute from "./routes/health.js";
-import vaultRoute from "./routes/vault.js"; // 👈 ADD THIS
+import vaultRoute from "./routes/vault.js"; // 👈 MUST
 
 const app = express();
 
@@ -13,8 +13,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
+// ROUTES
 app.use("/api", healthRoute);
-app.use("/api", vaultRoute); // 👈 ADD THIS
+app.use("/api", vaultRoute); // 👈 MUST
 
 export default app;

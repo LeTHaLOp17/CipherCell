@@ -6,34 +6,43 @@ export default function SignupVault({ onSignup }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(e) {
+  e.preventDefault();
 
-    if (!email.includes("@")) {
-      setError("Valid email required for security alerts.");
-      return;
-    }
-
-    if (password.length < 12) {
-      setError("Master password must be at least 12 characters.");
-      return;
-    }
-
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setError("");
-
-    // IMPORTANT:
-    // We DO NOT store password here
-    // We only pass it forward for next step (encryption)
-    onSignup({
-      email,
-      masterPassword: password,
-    });
+  if (!email.includes("@")) {
+    setError("Valid email required for security alerts.");
+    return;
   }
+
+  if (password.length < 12) {
+    setError("Master password must be at least 12 characters.");
+    return;
+  }
+
+  if (password !== confirm) {
+    setError("Passwords do not match.");
+    return;
+  }
+
+  setError("");
+
+  // 🔥 BACKEND POST (THIS WAS MISSING)
+  await fetch("http://localhost:4000/api/vault", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      encryptedVault: { dummy: true }, // TEMP
+      salt: [1, 2, 3], // TEMP
+    }),
+  });
+
+  // frontend state update
+  onSignup({
+    email,
+    masterPassword: password,
+  });
+}
+
 
   return (
     <div style={styles.wrapper}>

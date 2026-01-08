@@ -2,10 +2,10 @@ import express from "express";
 
 const router = express.Router();
 
-// TEMP in-memory vault (single-user)
+// SINGLE USER VAULT (in-memory for now)
 let vaultRecord = null;
 
-// GET vault (check if exists)
+// CHECK VAULT
 router.get("/vault", (req, res) => {
   if (!vaultRecord) {
     return res.json({ exists: false });
@@ -17,7 +17,7 @@ router.get("/vault", (req, res) => {
   });
 });
 
-// CREATE vault (signup)
+// CREATE VAULT (signup)
 router.post("/vault", (req, res) => {
   const { encryptedVault, salt } = req.body;
 
@@ -31,6 +31,12 @@ router.post("/vault", (req, res) => {
     createdAt: Date.now(),
   };
 
+  res.json({ success: true });
+});
+
+// DELETE VAULT (reset)
+router.delete("/vault", (req, res) => {
+  vaultRecord = null;
   res.json({ success: true });
 });
 
