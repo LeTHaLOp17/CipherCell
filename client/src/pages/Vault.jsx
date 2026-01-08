@@ -1,116 +1,101 @@
 import { useState } from "react";
 
 export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
-  const [title, setTitle] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [notes, setNotes] = useState("");
+  const [newItem, setNewItem] = useState({
+    title: "",
+    username: "",
+    password: "",
+    notes: "",
+  });
 
   const [editingId, setEditingId] = useState(null);
+  const [editItem, setEditItem] = useState({});
   const [visibleMap, setVisibleMap] = useState({});
   const [copiedId, setCopiedId] = useState(null);
 
-  function resetForm() {
-    setTitle("");
-    setUsername("");
-    setPassword("");
-    setNotes("");
-    setEditingId(null);
-  }
-
-  function handleSubmit(e) {
+  function handleAdd(e) {
     e.preventDefault();
-    if (!title || !password) return;
+    if (!newItem.title || !newItem.password) return;
 
-    if (editingId) {
-      onUpdate({
-        id: editingId,
-        title,
-        username,
-        password,
-        notes,
-      });
-    } else {
-      onAdd({
-        id: crypto.randomUUID(),
-        title,
-        username,
-        password,
-        notes,
-      });
-    }
+    onAdd({
+      id: crypto.randomUUID(),
+      ...newItem,
+    });
 
-    resetForm();
+    setNewItem({ title: "", username: "", password: "", notes: "" });
   }
 
   function startEdit(item) {
     setEditingId(item.id);
-    setTitle(item.title);
-    setUsername(item.username || "");
-    setPassword(item.password);
-    setNotes(item.notes || "");
+    setEditItem({ ...item });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditItem({});
+  }
+
+  function saveEdit() {
+    onUpdate(editItem);
+    cancelEdit();
   }
 
   function togglePassword(id) {
-    setVisibleMap((prev) => ({ ...prev, [id]: !prev[id] }));
+    setVisibleMap((p) => ({ ...p, [id]: !p[id] }));
   }
 
   async function copyPassword(item) {
     await navigator.clipboard.writeText(item.password);
     setCopiedId(item.id);
-
-    setTimeout(async () => {
-      await navigator.clipboard.writeText("");
+    setTimeout(() => {
+      navigator.clipboard.writeText("");
       setCopiedId(null);
     }, 15000);
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 760 }}>
+    <div style={{ padding: 24, maxWidth: 800 }}>
       <h2>🔑 Passwords</h2>
 
-      {/* FORM */}
-      <form onSubmit={handleSubmit}>
+      {/* ADD NEW ENTRY */}
+      <form onSubmit={handleAdd}>
         <input
-          placeholder="Title (Bank / Gmail / Insta)"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title"
+          value={newItem.title}
+          onChange={(e) =>
+            setNewItem({ ...newItem, title: e.target.value })
+          }
         />
-
         <input
           placeholder="Username / ID"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          value={newItem.username}
+          onChange={(e) =>
+            setNewItem({ ...newItem, username: e.target.value })
+          }
         />
-
         <input
           placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={newItem.password}
+          onChange={(e) =>
+            setNewItem({ ...newItem, password: e.target.value })
+          }
         />
-
         <textarea
-          placeholder="Notes (IFSC, account no, hints)"
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes"
+          rows={2}
+          value={newItem.notes}
+          onChange={(e) =>
+            setNewItem({ ...newItem, notes: e.target.value })
+          }
         />
-
-        <button type="submit">
-          {editingId ? "Update Entry" : "Add Entry"}
-        </button>
-
-        {editingId && (
-          <button type="button" onClick={resetForm}>
-            Cancel
-          </button>
-        )}
+        <button type="submit">Add</button>
       </form>
 
       <hr />
 
       {/* LIST */}
       {(vault.items || []).map((item) => {
+        const isEditing = editingId === item.id;
         const isVisible = visibleMap[item.id];
 
         return (
@@ -123,45 +108,93 @@ export default function Vault({ vault, onAdd, onUpdate, onDelete }) {
               borderRadius: 10,
             }}
           >
-            <strong>{item.title}</strong>
-            {item.username && <div>ID: {item.username}</div>}
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span>
-                Password:&nbsp;
-                {isVisible ? (
-                  <code>{item.password}</code>
-                ) : (
-                  <code>••••••••</code>
-                )}
-              </span>
-
-              <button onClick={() => togglePassword(item.id)}>
-                {isVisible ? "🙈 Hide" : "👁 Show"}
-              </button>
-
-              <button onClick={() => copyPassword(item)}>
-                {copiedId === item.id ? "✅ Copied" : "📋 Copy"}
-              </button>
-            </div>
-
-            {item.notes && (
-              <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
-                {item.notes}
-              </pre>
+            {/* TITLE */}
+            {isEditing ? (
+              <input
+                value={editItem.title}
+                onChange={(e) =>
+                  setEditItem({ ...editItem, title: e.target.value })
+                }
+              />
+            ) : (
+              <strong>{item.title}</strong>
             )}
 
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => startEdit(item)}>✏️ Edit</button>
-              <button
-                onClick={() => {
-                  if (confirm("Delete this entry?")) {
-                    onDelete(item.id);
+            {/* USERNAME */}
+            {isEditing ? (
+              <input
+                value={editItem.username || ""}
+                onChange={(e) =>
+                  setEditItem({ ...editItem, username: e.target.value })
+                }
+              />
+            ) : (
+              item.username && <div>ID: {item.username}</div>
+            )}
+
+            {/* PASSWORD */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {isEditing ? (
+                <input
+                  value={editItem.password}
+                  onChange={(e) =>
+                    setEditItem({ ...editItem, password: e.target.value })
                   }
-                }}
-              >
-                🗑️ Delete
-              </button>
+                />
+              ) : (
+                <code>
+                  {isVisible ? item.password : "••••••••"}
+                </code>
+              )}
+
+              {!isEditing && (
+                <>
+                  <button onClick={() => togglePassword(item.id)}>
+                    {isVisible ? "🙈" : "👁"}
+                  </button>
+                  <button onClick={() => copyPassword(item)}>
+                    {copiedId === item.id ? "✅" : "📋"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* NOTES */}
+            {isEditing ? (
+              <textarea
+                rows={2}
+                value={editItem.notes || ""}
+                onChange={(e) =>
+                  setEditItem({ ...editItem, notes: e.target.value })
+                }
+              />
+            ) : (
+              item.notes && (
+                <pre style={{ whiteSpace: "pre-wrap" }}>{item.notes}</pre>
+              )
+            )}
+
+            {/* ACTIONS */}
+            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+              {isEditing ? (
+                <>
+                  <button onClick={saveEdit}>💾 Save</button>
+                  <button onClick={cancelEdit}>✖ Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => startEdit(item)}>✏️ Edit</button>
+                  <button
+                    onClick={() => {
+                      if (confirm("Delete this entry?")) {
+                        onDelete(item.id);
+                      }
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
         );
