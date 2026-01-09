@@ -8,12 +8,14 @@ export default function UnlockVault({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const [remaining, setRemaining] = useState(() => {
-    if (!lockedUntil) return 0;
-    return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
-  });
+  // 🔐 single source of truth
+  const [remaining, setRemaining] = useState(() =>
+    lockedUntil > 0
+      ? Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000))
+      : 0
+  );
 
-  /* ---------------- COUNTDOWN (CLEAN & SAFE) ---------------- */
+  /* ---------------- COUNTDOWN (PURE & SAFE) ---------------- */
 
   useEffect(() => {
     if (!lockedUntil) return;
@@ -22,23 +24,23 @@ export default function UnlockVault({
       const diff = lockedUntil - Date.now();
 
       setRemaining((prev) => {
-        if (diff <= 0) {
-          clearInterval(interval);
-          return 0;
-        }
-        const next = Math.ceil(diff / 1000);
-        return prev !== next ? next : prev;
+        const next = diff > 0 ? Math.ceil(diff / 1000) : 0;
+        return prev === next ? prev : next;
       });
+
+      if (diff <= 0) {
+        clearInterval(interval);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
   }, [lockedUntil]);
 
+  /* ✅ derived state — NO Date.now() here */
   const isLocked = remaining > 0;
 
   function handleSubmit(e) {
     e.preventDefault();
-
     if (isLocked) return;
 
     if (!password) {
@@ -56,8 +58,6 @@ export default function UnlockVault({
     const s = sec % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
-
-  /* ---------------- UI ---------------- */
 
   return (
     <div style={styles.page}>
@@ -83,7 +83,6 @@ export default function UnlockVault({
             }}
           />
 
-          {/* STATUS TEXT (SUBTLE, NOT SCREAMING) */}
           {isLocked && (
             <p style={styles.lockText}>
               Too many failed attempts. Try again in{" "}
@@ -126,7 +125,6 @@ const styles = {
     placeItems: "center",
     padding: 20,
   },
-
   card: {
     width: "100%",
     maxWidth: 420,
@@ -135,12 +133,10 @@ const styles = {
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
     backdropFilter: "blur(32px)",
-    WebkitBackdropFilter: "blur(32px)",
     border: "1px solid rgba(200,170,255,0.25)",
     boxShadow:
       "0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08)",
   },
-
   brand: {
     fontSize: 13,
     letterSpacing: 1.2,
@@ -149,22 +145,17 @@ const styles = {
     color: "var(--muted)",
     marginBottom: 12,
   },
-
   heading: {
     margin: 0,
     fontSize: 26,
     fontWeight: 600,
-    letterSpacing: 0.3,
   },
-
   description: {
     marginTop: 8,
     marginBottom: 28,
     fontSize: 14,
     color: "var(--muted)",
-    lineHeight: 1.6,
   },
-
   input: {
     width: "100%",
     padding: "14px 16px",
@@ -175,7 +166,6 @@ const styles = {
     fontSize: 16,
     marginBottom: 10,
   },
-
   button: {
     width: "100%",
     marginTop: 18,
@@ -188,19 +178,16 @@ const styles = {
     fontWeight: 600,
     fontSize: 15,
   },
-
   lockText: {
     fontSize: 13,
     color: "var(--muted)",
     marginTop: 8,
   },
-
   warningText: {
     fontSize: 13,
     color: "#ffb4b4",
     marginTop: 8,
   },
-
   errorText: {
     fontSize: 13,
     color: "var(--danger)",

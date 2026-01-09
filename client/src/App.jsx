@@ -9,7 +9,7 @@ import { encryptData } from "./crypto/encrypt";
 import { decryptData } from "./crypto/decrypt";
 import { EMPTY_VAULT } from "./vault/vaultHeader";
 
-/* ---------------- SECURITY CONFIG ---------------- */
+/* ---------------- CONFIG ---------------- */
 
 const BACKOFF_DELAYS = [
   15 * 1000,
@@ -19,49 +19,98 @@ const BACKOFF_DELAYS = [
   5 * 60 * 1000,
 ];
 
+const SESSION_DURATION = 3 * 60 * 1000; // 3 min
+
 export default function App() {
   const [vaultState, setVaultState] = useState(VAULT_STATE.LOADING);
   const [vaultData, setVaultData] = useState(null);
   const [sessionKey, setSessionKey] = useState(null);
   const [vaultSalt, setVaultSalt] = useState(null);
 
-  const [failedAttempts, setFailedAttempts] = useState(
-    Number(localStorage.getItem("cc_failures") || 0)
-  );
-  const [lockedUntil, setLockedUntil] = useState(
-    Number(localStorage.getItem("cc_locked_until") || 0)
-  );
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
 
-  const lockTimer = useRef(null);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
-  /* ---------------- AUTO LOCK (SESSION) ---------------- */
+  const sessionIntervalRef = useRef(null);
+
+  /* ---------------- INIT SECURITY ---------------- */
+
+  useEffect(() => {
+    const fails = Number(localStorage.getItem("cc_failures") || 0);
+    const lock = Number(localStorage.getItem("cc_locked_until") || 0);
+    const now = Date.now();
+
+    if (lock > now) {
+      setFailedAttempts(fails);
+      setLockedUntil(lock);
+    } else {
+      localStorage.removeItem("cc_failures");
+      localStorage.removeItem("cc_locked_until");
+    }
+  }, []);
+
+  /* ---------------- SESSION TIMER (SINGLE SOURCE) ---------------- */
+
+  function startSessionTimer() {
+    const expires = Date.now() + SESSION_DURATION;
+    setSessionExpiresAt(expires);
+    setRemainingSeconds(Math.ceil(SESSION_DURATION / 1000));
+  }
+
+  function clearSessionTimer() {
+    if (sessionIntervalRef.current) {
+      clearInterval(sessionIntervalRef.current);
+      sessionIntervalRef.current = null;
+    }
+    setSessionExpiresAt(null);
+    setRemainingSeconds(0);
+  }
+
+  useEffect(() => {
+    if (!sessionExpiresAt) return;
+
+    // clear old interval (safety)
+    if (sessionIntervalRef.current) {
+      clearInterval(sessionIntervalRef.current);
+    }
+
+    sessionIntervalRef.current = setInterval(() => {
+      const diff = sessionExpiresAt - Date.now();
+
+      if (diff <= 0) {
+        clearSessionTimer();
+        lockVault();
+      } else {
+        setRemainingSeconds(Math.ceil(diff / 1000));
+      }
+    }, 1000);
+
+    return () => {
+      if (sessionIntervalRef.current) {
+        clearInterval(sessionIntervalRef.current);
+        sessionIntervalRef.current = null;
+      }
+    };
+  }, [sessionExpiresAt]);
+
+  /* ---------------- RESET SESSION ON ACTIVITY ---------------- */
+
+  function handleUserActivity() {
+    if (vaultState !== VAULT_STATE.UNLOCKED) return;
+    startSessionTimer();
+  }
+
+  /* ---------------- LOCK ---------------- */
 
   function lockVault() {
+    clearSessionTimer();
     setVaultData(null);
     setSessionKey(null);
     setVaultSalt(null);
     setVaultState(VAULT_STATE.LOCKED);
-
-    if (lockTimer.current) {
-      clearTimeout(lockTimer.current);
-      lockTimer.current = null;
-    }
   }
-
-  function resetAutoLock() {
-    if (lockTimer.current) clearTimeout(lockTimer.current);
-    lockTimer.current = setTimeout(lockVault, 3 * 60 * 1000);
-  }
-
-  /* ---------------- CLEANUP ---------------- */
-
-  useEffect(() => {
-    return () => {
-      if (lockTimer.current) {
-        clearTimeout(lockTimer.current);
-      }
-    };
-  }, []);
 
   /* ---------------- CHECK VAULT ---------------- */
 
@@ -89,20 +138,15 @@ export default function App() {
       body: JSON.stringify({ encryptedVault, salt: Array.from(salt) }),
     });
 
-    setVaultSalt(salt);
     setVaultState(VAULT_STATE.LOCKED);
   }
 
-  /* ---------------- UNLOCK (iOS STYLE) ---------------- */
+  /* ---------------- UNLOCK ---------------- */
 
   async function handleUnlock(masterPassword) {
     const now = Date.now();
 
-    if (lockedUntil && now < lockedUntil) {
-      const seconds = Math.ceil((lockedUntil - now) / 1000);
-      alert(`Too many attempts. Try again in ${seconds}s`);
-      return;
-    }
+    if (lockedUntil && now < lockedUntil) return;
 
     try {
       const res = await fetch("http://localhost:4000/api/vault");
@@ -114,7 +158,7 @@ export default function App() {
 
       setVaultData({
         version: decrypted.version ?? 1,
-        createdAt: decrypted.createdAt ?? Date.now(),
+        createdAt: decrypted.createdAt ?? now,
         items: decrypted.items ?? [],
       });
 
@@ -122,30 +166,25 @@ export default function App() {
       setVaultSalt(salt);
       setVaultState(VAULT_STATE.UNLOCKED);
 
+      // ✅ reset security
       setFailedAttempts(0);
       setLockedUntil(0);
       localStorage.removeItem("cc_failures");
       localStorage.removeItem("cc_locked_until");
 
-      resetAutoLock();
+      // ✅ START TIMER ONCE (IMPORTANT)
+      startSessionTimer();
     } catch {
-      const nextFailures = failedAttempts + 1;
+      const nextFails = failedAttempts + 1;
       const delay =
-        BACKOFF_DELAYS[Math.min(nextFailures - 1, BACKOFF_DELAYS.length - 1)];
+        BACKOFF_DELAYS[Math.min(nextFails - 1, BACKOFF_DELAYS.length - 1)];
+      const until = now + delay;
 
-      const lockUntil = Date.now() + delay;
+      setFailedAttempts(nextFails);
+      setLockedUntil(until);
 
-      setFailedAttempts(nextFailures);
-      setLockedUntil(lockUntil);
-
-      localStorage.setItem("cc_failures", nextFailures);
-      localStorage.setItem("cc_locked_until", lockUntil);
-
-      alert(
-        `Wrong password.\nNext attempt allowed in ${Math.ceil(
-          delay / 1000
-        )} seconds`
-      );
+      localStorage.setItem("cc_failures", nextFails);
+      localStorage.setItem("cc_locked_until", until);
     }
   }
 
@@ -164,10 +203,10 @@ export default function App() {
     });
 
     setVaultData(updatedVault);
-    resetAutoLock();
+    startSessionTimer(); // activity = reset
   }
 
-  /* ---------------- UI STATES ---------------- */
+  /* ---------------- UI ---------------- */
 
   if (vaultState === VAULT_STATE.LOADING)
     return <p style={{ padding: 24 }}>Loading CipherCell…</p>;
@@ -184,10 +223,11 @@ export default function App() {
       />
     );
 
-  /* ---------------- MAIN UI ---------------- */
+  const mins = Math.floor(remainingSeconds / 60);
+  const secs = String(remainingSeconds % 60).padStart(2, "0");
 
   return (
-    <div onClick={resetAutoLock} onKeyDown={resetAutoLock}>
+    <div onClick={handleUserActivity} onKeyDown={handleUserActivity}>
       <header
         style={{
           position: "fixed",
@@ -206,7 +246,12 @@ export default function App() {
           zIndex: 50,
         }}
       >
-        <strong>CipherCell</strong>
+        <strong>
+          🔐 CipherCell{" "}
+          <span style={{ fontSize: 12, opacity: 0.7 }}>
+            Auto-lock in {mins}:{secs}
+          </span>
+        </strong>
         <button onClick={lockVault}>Logout</button>
       </header>
 
