@@ -19,7 +19,9 @@ const BACKOFF_DELAYS = [
   5 * 60 * 1000,
 ];
 
-const SESSION_DURATION = 3 * 60 * 1000; // 3 min
+const SESSION_DURATION = 3 * 60 * 1000; // 3 minutes
+const PANIC_WINDOW = 2000; // 2 sec window for Esc presses
+const PANIC_COUNT = 3;
 
 export default function App() {
   const [vaultState, setVaultState] = useState(VAULT_STATE.LOADING);
@@ -34,6 +36,10 @@ export default function App() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const sessionIntervalRef = useRef(null);
+
+  /* ---------------- PANIC LOCK STATE ---------------- */
+
+  const escPressesRef = useRef([]);
 
   /* ---------------- INIT SECURITY ---------------- */
 
@@ -51,7 +57,7 @@ export default function App() {
     }
   }, []);
 
-  /* ---------------- SESSION TIMER (SINGLE SOURCE) ---------------- */
+  /* ---------------- SESSION TIMER ---------------- */
 
   function startSessionTimer() {
     const expires = Date.now() + SESSION_DURATION;
@@ -71,7 +77,6 @@ export default function App() {
   useEffect(() => {
     if (!sessionExpiresAt) return;
 
-    // clear old interval (safety)
     if (sessionIntervalRef.current) {
       clearInterval(sessionIntervalRef.current);
     }
@@ -95,22 +100,40 @@ export default function App() {
     };
   }, [sessionExpiresAt]);
 
-  /* ---------------- RESET SESSION ON ACTIVITY ---------------- */
-
-  function handleUserActivity() {
-    if (vaultState !== VAULT_STATE.UNLOCKED) return;
-    startSessionTimer();
-  }
-
   /* ---------------- LOCK ---------------- */
 
   function lockVault() {
     clearSessionTimer();
+    escPressesRef.current = []; // reset panic state
     setVaultData(null);
     setSessionKey(null);
     setVaultSalt(null);
     setVaultState(VAULT_STATE.LOCKED);
   }
+
+  /* ---------------- PANIC LOCK (ESC ×3) ---------------- */
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== "Escape") return;
+      if (vaultState !== VAULT_STATE.UNLOCKED) return;
+
+      const now = Date.now();
+      escPressesRef.current.push(now);
+
+      // keep only recent presses
+      escPressesRef.current = escPressesRef.current.filter(
+        (t) => now - t <= PANIC_WINDOW
+      );
+
+      if (escPressesRef.current.length >= PANIC_COUNT) {
+        lockVault();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [vaultState]);
 
   /* ---------------- CHECK VAULT ---------------- */
 
@@ -145,7 +168,6 @@ export default function App() {
 
   async function handleUnlock(masterPassword) {
     const now = Date.now();
-
     if (lockedUntil && now < lockedUntil) return;
 
     try {
@@ -166,13 +188,11 @@ export default function App() {
       setVaultSalt(salt);
       setVaultState(VAULT_STATE.UNLOCKED);
 
-      // ✅ reset security
       setFailedAttempts(0);
       setLockedUntil(0);
       localStorage.removeItem("cc_failures");
       localStorage.removeItem("cc_locked_until");
 
-      // ✅ START TIMER ONCE (IMPORTANT)
       startSessionTimer();
     } catch {
       const nextFails = failedAttempts + 1;
@@ -203,7 +223,7 @@ export default function App() {
     });
 
     setVaultData(updatedVault);
-    startSessionTimer(); // activity = reset
+    startSessionTimer();
   }
 
   /* ---------------- UI ---------------- */
@@ -227,7 +247,7 @@ export default function App() {
   const secs = String(remainingSeconds % 60).padStart(2, "0");
 
   return (
-    <div onClick={handleUserActivity} onKeyDown={handleUserActivity}>
+    <div>
       <header
         style={{
           position: "fixed",
